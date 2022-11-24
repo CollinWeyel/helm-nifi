@@ -1,3 +1,6 @@
+{{- if .Values.configuration.flow.configMap.data }}
+{{ .Values.configuration.flow.configMap.data }}
+{{- else if and (not .Values.configuration.flow.configMap.name) (not .Values.configuration.flow.configMap.key) }}
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <flowController encoding-version="1.3">
     <maxTimerDrivenThreadCount>10</maxTimerDrivenThreadCount>
@@ -19,3 +22,4 @@
     <controllerServices/>
     <reportingTasks/>
 </flowController>
+{{- end }}

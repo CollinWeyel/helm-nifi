@@ -38,7 +38,7 @@ sts:
   pod:
     annotations:
       security.alpha.kubernetes.io/sysctls: net.ipv4.ip_local_port_range=10000 65000
-      #prometheus.io/scrape: "true"      
+      #prometheus.io/scrape: "true"
   serviceAccount:
     create: false
     #name: nifi
@@ -91,7 +91,7 @@ properties:
   # use externalSecure for when inbound SSL is provided by nginx-ingress or other external mechanism
   externalSecure: false
   isNode: false
-  httpsPort: 8443 
+  httpsPort: 8443
   webProxyHost: # <clusterIP>:<NodePort> (If Nifi service is NodePort or LoadBalancer)
   clusterPort: 6007
   provenanceStorage: "8 GB"
@@ -104,8 +104,43 @@ properties:
     # listen to loopback interface so "kubectl port-forward ..." works
     nifi.web.http.network.interface.lo: lo
 
+  # Instead of building the nifi.properties file with the values from above, load the complete file from an existing
+  # configMap or use the supplied data as the full configuration. If the data key is set, it will be used.
+  # isNode still needs to be set
+  configMap:
+    name:
+    key:
+    data:
+
   ## Include aditional processors
   # customLibPath: "/opt/configuration_resources/custom_lib"
+
+configuration:
+  bootstrap:
+    configMap:
+      name:
+      key:
+    data:
+  bootstrapNotificationServices:
+    configMap:
+      name:
+      key:
+      data:
+  flow:
+    configMap:
+      name:
+      key:
+      data:
+  stateManagement:
+    configMap:
+      name:
+      key:
+      data:
+  zookeeper:
+    configMap:
+      name:
+      key:
+      data:
 
 ## Include additional libraries in the Nifi containers by using the postStart handler
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
@@ -117,8 +152,8 @@ auth:
   SSL:
     keystorePasswd: changeMe
     truststorePasswd: changeMe
-  
-  # Automaticaly disabled if OIDC or LDAP enabled 
+
+  # Automaticaly disabled if OIDC or LDAP enabled
   singleUser:
     username: username
     password: changemechangeme # Must to have at least 12 characters
@@ -149,6 +184,13 @@ auth:
     admin: nifi@example.com
     ## Request additional scopes, for example profile
     additionalScopes:
+
+  # Instead of building the authorizers.xml file with the values from above, load the complete file from an existing
+  # configMap or use the supplied data as the full configuration. If the data key is set, it will be used.
+  configMap:
+    name:
+    key:
+    data:
 
 openldap:
   enabled: false
@@ -379,11 +421,11 @@ certManager:
       cpu: 100m
       memory: 128Mi
   # cert-manager takes care of rotating the node certificates, so default
-  # their lifetime to 90 days.  But when the CA expires you may need to 
-  # 'helm delete' the cluster, delete all the node certificates and secrets, 
+  # their lifetime to 90 days.  But when the CA expires you may need to
+  # 'helm delete' the cluster, delete all the node certificates and secrets,
   # and then 'helm install' the NiFi cluster again.  If a site-to-site trusted
-  # CA or a NiFi Registry CA certificate expires, you'll need to restart all 
-  # pods to pick up the new version of the CA certificate.  So default the CA 
+  # CA or a NiFi Registry CA certificate expires, you'll need to restart all
+  # pods to pick up the new version of the CA certificate.  So default the CA
   # lifetime to 10 years to avoid that happening very often.
   # c.f. https://github.com/cert-manager/cert-manager/issues/2478#issuecomment-1095545529
   certDuration: 2160h

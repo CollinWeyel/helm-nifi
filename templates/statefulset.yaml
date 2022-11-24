@@ -136,18 +136,23 @@ spec:
           FQDN=$(hostname -f)
 {{- end }}
 
+{{- if and (and (not .Values.properties.configMap.name) (not .Values.properties.configMap.key)) (not .Values.properties.configMap.data) }}
           cat "${NIFI_HOME}/conf/nifi.temp" > "${NIFI_HOME}/conf/nifi.properties"
+{{- end }}
 
+{{- if not (and (and .Values.auth.configMap.name .Values.auth.configMap.key) (not .Values.auth.configMap.data)) }}
 {{- if .Values.auth.ldap.enabled }}
           cat "${NIFI_HOME}/conf/authorizers.temp" > "${NIFI_HOME}/conf/authorizers.xml"
           cat "${NIFI_HOME}/conf/login-identity-providers-ldap.xml" > "${NIFI_HOME}/conf/login-identity-providers.xml"
 {{- else if .Values.auth.oidc.enabled }}
+{{- if and (and (not .Values.properties.configMap.name) (not .Values.properties.configMap.key)) (not .Values.properties.configMap.data) }}
           prop_replace nifi.security.user.login.identity.provider ''
           prop_replace nifi.security.user.authorizer managed-authorizer
           prop_replace nifi.security.user.oidc.discovery.url {{ .Values.auth.oidc.discoveryUrl }}
           prop_replace nifi.security.user.oidc.client.id {{ .Values.auth.oidc.clientId }}
           prop_replace nifi.security.user.oidc.client.secret {{ .Values.auth.oidc.clientSecret }}
           prop_replace nifi.security.user.oidc.claim.identifying.user {{ .Values.auth.oidc.claimIdentifyingUser }}
+{{- end }}
           xmlstarlet ed --inplace --delete "//authorizers/authorizer[identifier='single-user-authorizer']" "${NIFI_HOME}/conf/authorizers.xml"
           xmlstarlet ed --inplace --update "//authorizers/userGroupProvider/property[@name='Users File']" -v './auth-conf/users.xml' "${NIFI_HOME}/conf/authorizers.xml"
           xmlstarlet ed --inplace --delete "//authorizers/userGroupProvider/property[@name='Initial User Identity 1']" "${NIFI_HOME}/conf/authorizers.xml"
@@ -182,7 +187,9 @@ spec:
 {{- else if .Values.auth.singleUser.username }}
           bin/nifi.sh set-single-user-credentials {{ .Values.auth.singleUser.username }} {{ .Values.auth.singleUser.password }}
 {{- end }}
+{{- end }}
 
+          #! Not in values.yaml
 {{ if .Values.customFlow }}
           gzip < {{ .Values.customFlow }} > /opt/nifi/data/flow.xml.gz
 {{ else }}
@@ -191,6 +198,7 @@ spec:
           fi
 {{ end }}
 
+{{- if and (and (not .Values.properties.configMap.name) (not .Values.properties.configMap.key)) (not .Values.properties.configMap.data) }}
           prop_replace nifi.remote.input.host ${FQDN}
           prop_replace nifi.cluster.node.address ${FQDN}
           prop_replace nifi.zookeeper.connect.string ${NIFI_ZOOKEEPER_CONNECT_STRING}
@@ -202,8 +210,10 @@ spec:
 {{- else }}
           prop_replace nifi.web.proxy.host {{ template "apache-nifi.fullname" $ }}.{{ .Release.Namespace }}.svc
 {{- end }}
+{{- end }}
 
 {{- if .Values.certManager.enabled }}
+{{- if and (and .Values.auth.configMap.name .Values.auth.configMap.key) (not .Values.auth.configMap.data) }}
           xmlstarlet ed --inplace --delete "authorizers/accessPolicyProvider/property[@name='Node Identity 1']" "${NIFI_HOME}/conf/authorizers.xml"
 {{ range untilStep 0 (int .Values.replicaCount) 1 }}
           xmlstarlet ed --inplace \
@@ -219,7 +229,9 @@ spec:
                           --value "Initial User Identity {{ . }}" \
                         "${NIFI_HOME}/conf/authorizers.xml"
 {{/* range untilStep 0 (int .Values.replicaCount ) 1 */}}{{ end }}
+{{- end }}
 
+{{- if and (and (not .Values.properties.configMap.name) (not .Values.properties.configMap.key)) (not .Values.properties.configMap.data) }}
           prop_replace nifi.security.keystore "${NIFI_HOME}/tls/keystore.jks"
           prop_replace nifi.security.keystoreType JKS
           prop_replace nifi.security.keystorePasswd "{{ .Values.certManager.keystorePasswd }}"
@@ -236,6 +248,7 @@ spec:
 
           prop_replace nifi.security.autoreload.enabled true
           prop_replace nifi.security.autoreload.interval "{{ .Values.certManager.refreshSeconds }} secs"
+{{- end }}
 
           while [ ! -r "${NIFI_HOME}/tls/truststore.jks" ]
           do
@@ -264,10 +277,12 @@ spec:
 
 {{- /* if .Values.certManager.enabled */}}{{ end }}
 
+{{- if and (and (not .Values.properties.configMap.name) (not .Values.properties.configMap.key)) (not .Values.properties.configMap.data) }}
 {{- if .Values.properties.safetyValve }}
   {{- range $prop, $val := .Values.properties.safetyValve }}
           prop_replace {{ $prop }} "{{ $val }}" nifi.properties
   {{- end }}
+{{- end }}
 {{- end }}
 
 {{- if .Values.properties.sensitiveKeySetFile }}
@@ -307,7 +322,7 @@ spec:
               echo "truststore=$(prop nifi.security.truststore)" >> secure.properties
               echo "truststorePasswd=$(prop nifi.security.truststorePasswd)" >> secure.properties
               echo "proxiedEntity={{ .Values.auth.admin }}" >> secure.properties
-             
+
               secureArgs="-p secure.properties"
 
               echo baseUrl ${baseUrl}
@@ -374,7 +389,7 @@ spec:
 {{- if .Values.metrics.prometheus.enabled }}
         - containerPort: {{ .Values.metrics.prometheus.port }}
           name: metrics
-          protocol: TCP                  
+          protocol: TCP
 {{- end }}
         - containerPort: {{ .Values.properties.httpsPort }}
 {{- if .Values.sts.hostPort }}
@@ -466,28 +481,61 @@ spec:
             mountPath: /opt/nifi/provenance_repository
           - name: "bootstrap-conf"
             mountPath: /opt/nifi/nifi-current/conf/bootstrap.conf
+{{- if and (and .Values.configuration.bootstrap.configMap.name .Values.configuration.bootstrap.configMap.key) (not .Values.configuration.bootstrap.configMap.data) }}
+            subPath: {{ .Values.configuration.bootstrap.configMap.key | quote}}
+{{- else }}
             subPath: "bootstrap.conf"
+{{- end }}
           - name: "nifi-properties"
+{{- if and (and .Values.properties.configMap.name .Values.properties.configMap.key) (not .Values.properties.configMap.data) }}
+            mountPath: /opt/nifi/nifi-current/conf/nifi.properties
+            subPath: {{ .Values.properties.configMap.key | quote}}
+{{- else }}
             mountPath: /opt/nifi/nifi-current/conf/nifi.temp
             subPath: "nifi.temp"
+{{- end }}
+{{- if and (and .Values.auth.configMap.name .Values.auth.configMap.key) (not .Values.auth.configMap.data) }}
+          - name: "authorizers-xml"
+            mountPath: /opt/nifi/nifi-current/conf/authorizers.xml
+            subPath: {{ .Values.auth.configMap.key | quote }}
+{{- else }}
           - name: "authorizers-temp"
             mountPath: /opt/nifi/nifi-current/conf/authorizers.temp
             subPath: "authorizers.temp"
+{{- end }}
           - name: "bootstrap-notification-services-xml"
             mountPath: /opt/nifi/nifi-current/conf/bootstrap-notification-services.xml
+{{- if and (and .Values.configuration.bootstrapNotificationServices.configMap.name .Values.configuration.bootstrapNotificationServices.configMap.key) (not .Values.configuration.bootstrapNotificationServices.configMap.data) }}
+            subPath: {{ .Values.configuration.bootstrapNotificationServices.configMap.key | quote}}
+{{- else }}
             subPath: "bootstrap-notification-services.xml"
+{{- end }}
+{{- if not (and (and .Values.auth.configMap.name .Values.auth.configMap.key) (not .Values.auth.configMap.data)) }}
           - name: "login-identity-providers-ldap-xml"
             mountPath: /opt/nifi/nifi-current/conf/login-identity-providers-ldap.xml
             subPath: "login-identity-providers-ldap.xml"
+{{- end }}
           - name: "state-management-xml"
             mountPath: /opt/nifi/nifi-current/conf/state-management.xml
+{{- if and (and .Values.configuration.stateManagement.configMap.name .Values.configuration.stateManagement.configMap.key) (not .Values.configuration.stateManagement.configMap.data) }}
+            subPath: {{ .Values.configuration.stateManagement.configMap.key | quote}}
+{{- else }}
             subPath: "state-management.xml"
+{{- end }}
           - name: "zookeeper-properties"
             mountPath: /opt/nifi/nifi-current/conf/zookeeper.properties
+{{- if and (and .Values.configuration.zookeeper.configMap.name .Values.configuration.zookeeper.configMap.key) (not .Values.configuration.zookeeper.configMap.data) }}
+            subPath: {{ .Values.configuration.zookeeper.configMap.key | quote}}
+{{- else }}
             subPath: "zookeeper.properties"
+{{- end }}
           - name: "flow-content"
             mountPath: /opt/nifi/data/flow.xml
+{{- if and (and .Values.configuration.flow.configMap.name .Values.configuration.flow.configMap.key) (not .Values.configuration.flow.configMap.data) }}
+            subPath: {{ .Values.configuration.flow.configMap.key | quote}}
+{{- else }}
             subPath: "flow.xml"
+{{- end }}
           {{- range $secret := .Values.secrets }}
             {{- if $secret.mountPath }}
               {{- if $secret.keys }}
@@ -531,7 +579,7 @@ spec:
       - name: app-log
         imagePullPolicy: {{ .Values.sidecar.imagePullPolicy | default "Always" | quote }}
         image: "{{ .Values.sidecar.image }}:{{ .Values.sidecar.tag }}"
-        args: 
+        args:
           - /bin/sh
           - -c
           - trap "exit 0" TERM; tail -n+1 -F /var/log/nifi-app.log & wait $!
@@ -573,7 +621,7 @@ spec:
         - -ce
         - |
           trap "exit 0" TERM
-          
+
           NODENAME=$(hostname)
           mkdir -p "${NIFI_HOME}"/tls/cert-manager
 
@@ -592,12 +640,12 @@ spec:
                  --output /tmp/secret.json
             jq .data < /tmp/secret.json > /tmp/secret-data.json
             rm -f /tmp/secret.json
-          }       
-        
+          }
+
           pullNodeSecretData
           jq -r '."ca.crt"' < /tmp/secret-data.json | base64 -d > "${NIFI_HOME}"/tls/cert-manager/ca.crt
           touch /tmp/tls.crt.old
-            
+
           rm -f "${NIFI_HOME}/tls/truststore-new.jks"
           for ca in "${NIFI_HOME}"/tls/*/ca.crt
           do
@@ -696,52 +744,84 @@ spec:
       volumes:
       - name: "bootstrap-conf"
         configMap:
+{{- if and (and .Values.configuration.bootstrap.configMap.name .Values.configuration.bootstrap.configMap.key) (not .Values.configuration.bootstrap.configMap.data) }}
+          name: {{ .Values.configuration.bootstrap.configMap.name | quote }}
+{{- else }}
           name: {{ template "apache-nifi.fullname" . }}-config
           items:
             - key: "bootstrap.conf"
               path: "bootstrap.conf"
+{{- end }}
       - name: "nifi-properties"
         configMap:
+{{- if and (and .Values.properties.configMap.name .Values.properties.configMap.key) (not .Values.properties.configMap.data) }}
+          name: {{ .Values.properties.configMap.name | quote }}
+{{- else }}
           name: {{ template "apache-nifi.fullname" . }}-config
           items:
             - key: "nifi.properties"
               path: "nifi.temp"
+{{- end }}
+{{- if and (and .Values.auth.configMap.name .Values.auth.configMap.key) (not .Values.auth.configMap.data) }}
+      - name: "authorizers-xml"
+        configMap:
+          name: {{ .Values.auth.configMap.name | quote }}
+{{- else }}
       - name: "authorizers-temp"
         configMap:
           name: {{ template "apache-nifi.fullname" . }}-config
           items:
             - key: "authorizers.xml"
               path: "authorizers.temp"
+{{- end }}
       - name: "bootstrap-notification-services-xml"
         configMap:
+{{- if and (and .Values.configuration.bootstrapNotificationServices.configMap.name .Values.configuration.bootstrapNotificationServices.configMap.key) (not .Values.configuration.bootstrapNotificationServices.configMap.data) }}
+          name: {{ .Values.configuration.bootstrapNotificationServices.configMap.name | quote }}
+{{- else }}
           name: {{ template "apache-nifi.fullname" . }}-config
           items:
             - key: "bootstrap-notification-services.xml"
               path: "bootstrap-notification-services.xml"
+{{- end }}
+{{- if and (not .Values.auth.configMap.name) (not .Values.auth.configMap.key) }}
       - name: "login-identity-providers-ldap-xml"
         configMap:
           name: {{ template "apache-nifi.fullname" . }}-config
           items:
             - key: "login-identity-providers-ldap.xml"
               path: "login-identity-providers-ldap.xml"
+{{- end }}
       - name: "state-management-xml"
         configMap:
+{{- if and (and .Values.configuration.stateManagement.configMap.name .Values.configuration.stateManagement.configMap.key) (not .Values.configuration.stateManagement.configMap.data) }}
+          name: {{ .Values.configuration.stateManagement.configMap.name | quote }}
+{{- else }}
           name: {{ template "apache-nifi.fullname" . }}-config
           items:
             - key: "state-management.xml"
               path: "state-management.xml"
+{{- end }}
       - name: "zookeeper-properties"
         configMap:
+{{- if and (and .Values.configuration.zookeeper.configMap.name .Values.configuration.zookeeper.configMap.key) (not .Values.configuration.zookeeper.configMap.data) }}
+          name: {{ .Values.configuration.zookeeper.configMap.name | quote }}
+{{- else }}
           name: {{ template "apache-nifi.fullname" . }}-config
           items:
             - key: "zookeeper.properties"
               path: "zookeeper.properties"
+{{- end }}
       - name: "flow-content"
         configMap:
+{{- if and (and .Values.configuration.flow.configMap.name .Values.configuration.flow.configMap.key) (not .Values.configuration.flow.configMap.data) }}
+          name: {{ .Values.configuration.flow.configMap.name | quote }}
+{{- else }}
           name: {{ template "apache-nifi.fullname" . }}-config
           items:
             - key: "flow.xml"
               path: "flow.xml"
+{{- end }}
 {{- if .Values.certManager.enabled }}
       - name: secret-reader-token
         secret:

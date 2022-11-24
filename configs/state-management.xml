@@ -1,3 +1,6 @@
+{{- if .Values.configuration.stateManagement.configMap.data }}
+{{ .Values.configuration.stateManagement.configMap.data }}
+{{- else if and (not .Values.configuration.stateManagement.configMap.name) (not .Values.configuration.stateManagement.configMap.key) }}
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <stateManagement>
     <local-provider>
@@ -17,3 +20,4 @@
         <property name="Access Control">Open</property>
     </cluster-provider>
 </stateManagement>
+{{- end }}

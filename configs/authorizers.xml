@@ -1,3 +1,6 @@
+{{- if .Values.auth.configMap.data }}
+{{ .Values.auth.configMap.data }}
+{{- else if and (not .Values.auth.configMap.name) (not .Values.auth.configMap.key) }}
 {{- $replicas := int .Values.replicaCount }}
 {{- $chart := .Chart.Name }}
 {{- $release := .Release.Name }}
@@ -280,3 +283,4 @@
     </authorizer>
     {{- end}}
 </authorizers>
+{{- end }}

@@ -1,3 +1,6 @@
+{{- if .Values.configuration.bootstrapNotificationServices.configMap.data }}
+{{ .Values.configuration.bootstrapNotificationServices.configMap.data }}
+{{- else if and (not .Values.configuration.bootstrapNotificationServices.configMap.name) (not .Values.configuration.bootstrapNotificationServices.configMap.key) }}
 <?xml version="1.0"?>
 <!--
   Licensed to the Apache Software Foundation (ASF) under one or more
@@ -24,12 +27,12 @@
                 <property name="another property">another property value</property>
             </service>
         </services>
-        
+
         This file can contain 0 to many different service definitions.
         The id can then be referenced from the bootstrap.conf file in order to configure the notification service
         to be used when particular lifecycle events occur.
     -->
-    
+
 <!--
      <service>
         <id>email-notification</id>
@@ -51,3 +54,4 @@
      </service>
 -->
 </services>
+{{- end }}
